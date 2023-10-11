@@ -31,7 +31,7 @@ use webrender_api::units::{DeviceIntSize, RectExt as RectExt_};
 use webrender_api::{ImageData, ImageDescriptor, ImageDescriptorFlags, ImageFormat, ImageKey};
 
 use crate::canvas_paint_thread::{AntialiasMode, ImageUpdate, WebrenderApi};
-use crate::raqote_backend::Repetition;
+//use crate::raqote_backend::Repetition;
 
 /// The canvas data stores a state machine for the current status of
 /// the path data and any relevant transformations that are
@@ -130,7 +130,7 @@ pub trait GenericPathBuilder {
     fn line_to(&mut self, point: Point2D<f32>);
     fn move_to(&mut self, point: Point2D<f32>);
     fn quadratic_curve_to(&mut self, control_point: &Point2D<f32>, end_point: &Point2D<f32>);
-    fn finish(&mut self) -> Path;
+    fn finish(&mut self) -> Option<Path>;
 }
 
 /// A wrapper around a stored PathBuilder and an optional transformation that should be
@@ -243,30 +243,22 @@ pub trait GenericDrawTarget {
     fn clear_rect(&mut self, rect: &Rect<f32>);
     fn copy_surface(
         &mut self,
-        surface: SourceSurface,
+        surface: &[u8],
         source: Rect<i32>,
         destination: Point2D<i32>,
     );
     fn create_gradient_stops(
         &self,
         gradient_stops: Vec<GradientStop>,
-        extend_mode: ExtendMode,
     ) -> GradientStops;
     fn create_path_builder(&self) -> Box<dyn GenericPathBuilder>;
     fn create_similar_draw_target(
         &self,
         size: &Size2D<i32>,
-        format: SurfaceFormat,
     ) -> Box<dyn GenericDrawTarget>;
-    fn create_source_surface_from_data(
-        &self,
-        data: &[u8],
-        size: Size2D<i32>,
-        stride: i32,
-    ) -> Option<SourceSurface>;
     fn draw_surface(
         &mut self,
-        surface: SourceSurface,
+        surface: &[u8],
         dest: Rect<f64>,
         source: Rect<f64>,
         filter: Filter,
@@ -274,7 +266,7 @@ pub trait GenericDrawTarget {
     );
     fn draw_surface_with_shadow(
         &self,
-        surface: SourceSurface,
+        surface: &[u8],
         dest: &Point2D<f32>,
         color: &Color,
         offset: &Vector2D<f32>,
@@ -291,14 +283,15 @@ pub trait GenericDrawTarget {
         pattern: &Pattern,
         draw_options: &DrawOptions,
     );
-    fn fill_rect(&mut self, rect: &Rect<f32>, pattern: Pattern, draw_options: Option<&DrawOptions>);
-    fn get_format(&self) -> SurfaceFormat;
+    fn fill_rect(&mut self, rect: &Rect<f32>, pattern: Pattern, draw_options: &DrawOptions);
     fn get_size(&self) -> Size2D<i32>;
     fn get_transform(&self) -> Transform2D<f32>;
     fn pop_clip(&mut self);
     fn push_clip(&mut self, path: &Path);
     fn set_transform(&mut self, matrix: &Transform2D<f32>);
-    fn snapshot(&self) -> SourceSurface;
+    fn get_opacity(&self) -> f32;
+    fn set_opacity(&mut self, opacity: f32);
+    fn snapshot(&self) -> &[u8];
     fn stroke(
         &mut self,
         path: &Path,
@@ -325,60 +318,55 @@ pub trait GenericDrawTarget {
     fn snapshot_data_owned(&self) -> Vec<u8>;
 }
 
-#[derive(Clone)]
-pub enum ExtendMode {
-    Raqote(()),
-}
-
 pub enum GradientStop {
     Raqote(raqote::GradientStop),
+    TinySkia(tiny_skia::GradientStop),
 }
 
 pub enum GradientStops {
     Raqote(Vec<raqote::GradientStop>),
+    TinySkia(Vec<tiny_skia::GradientStop>),
 }
 
 #[derive(Clone)]
 pub enum Color {
     Raqote(raqote::SolidSource),
+    TinySkia(tiny_skia::PremultipliedColor),
 }
 
 #[derive(Clone)]
 pub enum CompositionOp {
     Raqote(raqote::BlendMode),
-}
-
-pub enum SurfaceFormat {
-    Raqote(()),
-}
-
-#[derive(Clone)]
-pub enum SourceSurface {
-    Raqote(Vec<u8>), // TODO: See if we can avoid the alloc (probably?)
+    TinySkia(tiny_skia::BlendMode),
 }
 
 #[derive(Clone)]
 pub enum Path {
     Raqote(raqote::Path),
+    TinySkia(tiny_skia::Path),
 }
 
 #[derive(Clone)]
 pub enum Pattern<'a> {
-    Raqote(crate::raqote_backend::Pattern<'a>),
+    //Raqote(crate::raqote_backend::Pattern<'a>),
+    TinySkia(tiny_skia::Shader<'a>)
 }
 
 pub enum DrawSurfaceOptions {
     Raqote(()),
+    TinySkia(()),
 }
 
 #[derive(Clone)]
-pub enum DrawOptions {
+pub enum DrawOptions<'a> {
     Raqote(raqote::DrawOptions),
+    TinySkia(tiny_skia::Paint<'a>),
 }
 
 #[derive(Clone)]
-pub enum StrokeOptions<'a> {
-    Raqote(raqote::StrokeStyle, PhantomData<&'a ()>),
+pub enum StrokeOptions {
+    Raqote(raqote::StrokeStyle),
+    TinySkia(tiny_skia::Stroke),
 }
 
 #[derive(Clone, Copy)]
@@ -418,7 +406,8 @@ pub struct CanvasData<'a> {
 }
 
 fn create_backend() -> Box<dyn Backend> {
-    Box::new(crate::raqote_backend::RaqoteBackend)
+    Box::new(crate::tiny_skia_backend::TinySkiaBackend)
+    //Box::new(crate::raqote_backend::RaqoteBackend)
 }
 
 impl<'a> CanvasData<'a> {
@@ -511,6 +500,9 @@ impl<'a> CanvasData<'a> {
     ) {
         // Step 2.
         let text = replace_ascii_whitespace(text);
+        /*
+        // Step 2.
+        let text = replace_ascii_whitespace(text);
 
         // Step 3.
         let point_size = self
@@ -559,7 +551,7 @@ impl<'a> CanvasData<'a> {
         // TODO: Bidi text layout
 
         let old_transform = self.get_transform();
-        self.set_transform(
+                self.set_transform(
             &old_transform
                 .pre_translate(vec2(start.x, 0.))
                 .pre_scale(scale_factor, 1.)
@@ -577,6 +569,7 @@ impl<'a> CanvasData<'a> {
         );
 
         self.set_transform(&old_transform);
+        */
     }
 
     fn text_origin(
@@ -618,6 +611,7 @@ impl<'a> CanvasData<'a> {
         }
 
         let draw_rect = match &self.state.fill_style {
+            /*
             Pattern::Raqote(pattern) => match pattern {
                 crate::raqote_backend::Pattern::Surface(pattern) => {
                     let pattern_rect = Rect::new(Point2D::origin(), pattern.size());
@@ -651,6 +645,9 @@ impl<'a> CanvasData<'a> {
                 crate::raqote_backend::Pattern::LinearGradient(..) |
                 crate::raqote_backend::Pattern::RadialGradient(..) => *rect,
             },
+            */
+            Pattern::TinySkia(pattern) => *rect,
+            _ => todo!(),
         };
 
         if self.need_to_draw_shadow() {
@@ -658,14 +655,14 @@ impl<'a> CanvasData<'a> {
                 new_draw_target.fill_rect(
                     &draw_rect,
                     self.state.fill_style.clone(),
-                    Some(&self.state.draw_options),
+                    &self.state.draw_options,
                 );
             });
         } else {
             self.drawtarget.fill_rect(
                 &draw_rect,
                 self.state.fill_style.clone(),
-                Some(&self.state.draw_options),
+                &self.state.draw_options,
             );
         }
     }
@@ -729,7 +726,11 @@ impl<'a> CanvasData<'a> {
         // If a user-space builder exists, create a finished path from it.
         let new_state = match *self.path_state.as_mut().unwrap() {
             PathState::UserSpacePathBuilder(ref mut builder, ref mut transform) => {
-                Some((builder.finish(), transform.take()))
+                if let Some(path) = builder.finish() {
+                    Some((path, transform.take()))
+                } else {
+                    None
+                }
             },
             PathState::DeviceSpacePathBuilder(..) | PathState::UserSpacePath(..) => None,
         };
@@ -755,16 +756,19 @@ impl<'a> CanvasData<'a> {
         // finished path by inverting the initial transformation.
         let new_state = match *self.path_state.as_mut().unwrap() {
             PathState::DeviceSpacePathBuilder(ref mut builder) => {
-                let path = builder.finish();
-                let inverse = match self.drawtarget.get_transform().inverse() {
-                    Some(m) => m,
-                    None => {
-                        warn!("Couldn't invert canvas transformation.");
-                        return;
-                    },
-                };
-                let mut builder = path.transformed_copy_to_builder(&inverse);
-                Some(builder.finish())
+                if let Some(path) = builder.finish() {
+                    let inverse = match self.drawtarget.get_transform().inverse() {
+                        Some(m) => m,
+                        None => {
+                            warn!("Couldn't invert canvas transformation.");
+                            return;
+                        },
+                    };
+                    let mut builder = path.transformed_copy_to_builder(&inverse);
+                    builder.finish()
+                } else {
+                    None
+                }
             },
             PathState::UserSpacePathBuilder(..) | PathState::UserSpacePath(..) => None,
         };
@@ -859,10 +863,13 @@ impl<'a> CanvasData<'a> {
                     None
                 },
                 PathState::UserSpacePathBuilder(ref mut builder, Some(ref transform)) => {
-                    let path = builder.finish();
-                    Some(PathState::DeviceSpacePathBuilder(
-                        path.transformed_copy_to_builder(transform),
-                    ))
+                    if let Some(path) = builder.finish() {
+                        Some(PathState::DeviceSpacePathBuilder(
+                            path.transformed_copy_to_builder(transform),
+                        ))
+                    } else {
+                        None
+                    }
                 },
                 PathState::UserSpacePath(ref path, Some(ref transform)) => Some(
                     PathState::DeviceSpacePathBuilder(path.transformed_copy_to_builder(transform)),
@@ -1077,6 +1084,7 @@ impl<'a> CanvasData<'a> {
 
     pub fn set_global_alpha(&mut self, alpha: f32) {
         self.state.draw_options.set_alpha(alpha);
+        self.drawtarget.set_opacity(alpha);
     }
 
     pub fn set_global_composition(&mut self, op: CompositionOrBlending) {
@@ -1121,7 +1129,7 @@ impl<'a> CanvasData<'a> {
             flags: ImageDescriptorFlags::empty(),
         };
         let data = self.drawtarget.snapshot_data_owned();
-        let data = ImageData::Raw(Arc::new(data));
+        let data = ImageData::new(data);
 
         let mut updates = vec![];
 
@@ -1160,16 +1168,9 @@ impl<'a> CanvasData<'a> {
         assert_eq!(imagedata.len() % 4, 0);
         assert_eq!(rect.size.area() as usize, imagedata.len() / 4);
         pixels::rgba8_byte_swap_and_premultiply_inplace(&mut imagedata);
-        let source_surface = self
-            .drawtarget
-            .create_source_surface_from_data(
-                &imagedata,
-                rect.size.to_i32(),
-                rect.size.width as i32 * 4,
-            )
-            .unwrap();
+
         self.drawtarget.copy_surface(
-            source_surface,
+            &imagedata,
             Rect::from_size(rect.size.to_i32()),
             rect.origin.to_i32(),
         );
@@ -1217,7 +1218,6 @@ impl<'a> CanvasData<'a> {
                 source_rect.size.width as i32,
                 source_rect.size.height as i32,
             ),
-            self.drawtarget.get_format(),
         );
         let matrix = self.state.transform.then(
             &Transform2D::identity().pre_translate(-source_rect.origin.to_vector().cast::<f32>()),
@@ -1287,10 +1287,10 @@ const IDEOGRAPHIC_BASELINE_DEFAULT: f32 = 0.5;
 
 #[derive(Clone)]
 pub struct CanvasPaintState<'a> {
-    pub draw_options: DrawOptions,
+    pub draw_options: DrawOptions<'a>,
     pub fill_style: Pattern<'a>,
     pub stroke_style: Pattern<'a>,
-    pub stroke_opts: StrokeOptions<'a>,
+    pub stroke_opts: StrokeOptions,
     /// The current 2D transform matrix.
     pub transform: Transform2D<f32>,
     pub shadow_offset_x: f64,
@@ -1339,11 +1339,7 @@ fn write_image(
     };
     let image_size = image_size.to_i32();
 
-    let source_surface = draw_target
-        .create_source_surface_from_data(&image_data, image_size, image_size.width * 4)
-        .unwrap();
-
-    draw_target.draw_surface(source_surface, dest_rect, image_rect, filter, draw_options);
+    draw_target.draw_surface(&image_data, dest_rect, image_rect, filter, draw_options);
 }
 
 pub trait RectToi32 {

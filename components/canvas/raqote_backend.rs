@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-use std::marker::PhantomData;
-
 use canvas_traits::canvas::*;
 use cssparser::RGBA;
 use euclid::default::{Point2D, Rect, Size2D, Transform2D, Vector2D};
@@ -15,7 +13,7 @@ use raqote::PathOp;
 
 use crate::canvas_data;
 use crate::canvas_data::{
-    Backend, CanvasPaintState, Color, CompositionOp, DrawOptions, ExtendMode, Filter,
+    Backend, CanvasPaintState, Color, CompositionOp, DrawOptions, Filter,
     GenericDrawTarget, GenericPathBuilder, GradientStop, GradientStops, Path, SourceSurface,
     StrokeOptions, SurfaceFormat,
 };
@@ -85,7 +83,7 @@ impl<'a> CanvasPaintState<'a> {
             draw_options: DrawOptions::Raqote(raqote::DrawOptions::new()),
             fill_style: canvas_data::Pattern::Raqote(pattern.clone()),
             stroke_style: canvas_data::Pattern::Raqote(pattern),
-            stroke_opts: StrokeOptions::Raqote(Default::default(), PhantomData),
+            stroke_opts: StrokeOptions::Raqote(Default::default()),
             transform: Transform2D::identity(),
             shadow_offset_x: 0.0,
             shadow_offset_y: 0.0,
@@ -248,6 +246,7 @@ impl canvas_data::Pattern<'_> {
                     pattern.transform,
                 ),
             },
+            _ => todo!(),
         }
     }
     pub fn is_zero_size_gradient(&self) -> bool {
@@ -263,52 +262,61 @@ impl canvas_data::Pattern<'_> {
                 },
                 Pattern::Color(..) | Pattern::Surface(..) => false,
             },
+            _ => false,
         }
     }
 }
 
-impl<'a> StrokeOptions<'a> {
+impl StrokeOptions {
     pub fn set_line_width(&mut self, _val: f32) {
         match self {
-            StrokeOptions::Raqote(options, _) => options.width = _val,
+            StrokeOptions::Raqote(options) => options.width = _val,
+            _ => todo!(),
         }
     }
     pub fn set_miter_limit(&mut self, _val: f32) {
         match self {
-            StrokeOptions::Raqote(options, _) => options.miter_limit = _val,
+            StrokeOptions::Raqote(options) => options.miter_limit = _val,
+            _ => todo!(),
         }
     }
     pub fn set_line_join(&mut self, val: LineJoinStyle) {
         match self {
-            StrokeOptions::Raqote(options, _) => options.join = val.to_raqote_style(),
+            StrokeOptions::Raqote(options) => options.join = val.to_raqote_style(),
+            _ => todo!(),
         }
     }
     pub fn set_line_cap(&mut self, val: LineCapStyle) {
         match self {
-            StrokeOptions::Raqote(options, _) => options.cap = val.to_raqote_style(),
+            StrokeOptions::Raqote(options) => options.cap = val.to_raqote_style(),
+            _ => todo!(),
         }
     }
     pub fn as_raqote(&self) -> &raqote::StrokeStyle {
         match self {
-            StrokeOptions::Raqote(options, _) => options,
+            StrokeOptions::Raqote(options) => options,
+            _ => todo!(),
         }
     }
 }
 
-impl DrawOptions {
+impl DrawOptions<'_> {
     pub fn set_alpha(&mut self, val: f32) {
         match self {
             DrawOptions::Raqote(draw_options) => draw_options.alpha = val,
+            _ => todo!(),
         }
     }
     pub fn as_raqote(&self) -> &raqote::DrawOptions {
         match self {
             DrawOptions::Raqote(options) => options,
+            _ => todo!(),
         }
     }
     fn as_raqote_mut(&mut self) -> &mut raqote::DrawOptions {
         match self {
             DrawOptions::Raqote(options) => options,
+            _ => todo!(),
         }
     }
 }
@@ -339,6 +347,7 @@ impl Path {
     pub fn as_raqote(&self) -> &raqote::Path {
         match self {
             Path::Raqote(p) => p,
+            _ => todo!(),
         }
     }
 }
@@ -392,7 +401,6 @@ impl GenericDrawTarget for raqote::DrawTarget {
     fn create_gradient_stops(
         &self,
         gradient_stops: Vec<GradientStop>,
-        _extend_mode: ExtendMode,
     ) -> GradientStops {
         let mut stops = gradient_stops
             .into_iter()
@@ -566,7 +574,7 @@ impl GenericDrawTarget for raqote::DrawTarget {
         &mut self,
         rect: &Rect<f32>,
         pattern: canvas_data::Pattern,
-        draw_options: Option<&DrawOptions>,
+        draw_options: &DrawOptions,
     ) {
         let mut pb = raqote::PathBuilder::new();
         pb.rect(
@@ -944,6 +952,7 @@ impl Color {
     fn as_raqote(&self) -> &raqote::SolidSource {
         match self {
             Color::Raqote(s) => s,
+            _ => todo!(),
         }
     }
 }
@@ -1016,6 +1025,7 @@ impl SourceSurface {
     fn as_raqote(&self) -> &Vec<u8> {
         match self {
             SourceSurface::Raqote(s) => s,
+            _ => todo!(),
         }
     }
 }
@@ -1024,6 +1034,7 @@ impl GradientStop {
     fn as_raqote(&self) -> &raqote::GradientStop {
         match self {
             GradientStop::Raqote(s) => s,
+            _ => todo!(),
         }
     }
 }

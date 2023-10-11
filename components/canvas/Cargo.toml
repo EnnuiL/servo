@@ -41,6 +41,7 @@ style = { path = "../style" }
 style_traits = { path = "../style_traits" }
 surfman = { workspace = true }
 time = { workspace = true, optional = true }
+tiny-skia = { version = "0.11", features = ["std", "simd"], default-features = false }
 webrender = { workspace = true }
 webrender_api = { workspace = true }
 webrender_surfman = { path = "../webrender_surfman" }
