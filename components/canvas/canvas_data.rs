@@ -371,8 +371,8 @@ pub enum StrokeOptions {
 
 #[derive(Clone, Copy)]
 pub enum Filter {
-    Linear,
-    Point,
+    Bilinear,
+    Nearest,
 }
 
 pub(crate) type CanvasFontContext = FontContext<FontCacheThread>;
@@ -1333,9 +1333,9 @@ fn write_image(
     // to apply a smoothing algorithm to the image data when it is scaled.
     // Otherwise, the image must be rendered using nearest-neighbor interpolation.
     let filter = if smoothing_enabled {
-        Filter::Linear
+        Filter::Bilinear
     } else {
-        Filter::Point
+        Filter::Nearest
     };
     let image_size = image_size.to_i32();
 

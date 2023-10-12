@@ -145,7 +145,7 @@ impl Backend for TinySkiaBackend {
                     ).unwrap(),
                     tiny_skia::SpreadMode::Pad,
                     tiny_skia::FilterQuality::Bilinear,
-                    drawtarget.get_opacity().clone(),
+                    1.0,
                     drawtarget.get_transform().to_tiny_skia(),
                 )
             },
@@ -293,8 +293,15 @@ impl Path {
 impl<'a> canvas_data::Pattern<'a> {
     pub fn is_zero_size_gradient(&self) -> bool {
         match self {
-            canvas_data::Pattern::TinySkia(pattern) => false,
-            _ => false,
+            // TODO - tiny_skia immediately converts any zero-sized gradients into anything but a gradient
+            // Investigate how a non-gradient pattern can be made distinct from a zero-sized one
+            canvas_data::Pattern::TinySkia(pattern) => match pattern {
+                tiny_skia::Shader::SolidColor(_) => false,
+                tiny_skia::Shader::LinearGradient(_) => false,
+                tiny_skia::Shader::RadialGradient(_) => false,
+                tiny_skia::Shader::Pattern(_) => false,
+            },
+            _ => todo!(),
         }
     }
 
@@ -411,9 +418,9 @@ impl GenericDrawTarget for PixmapTarget {
     ) {
         let pixmap = PixmapRef::from_bytes(surface, source.width() as u32, source.height() as u32).unwrap();
         let paint = &mut PixmapPaint::default();
-        paint.opacity = self.opacity;
+        paint.blend_mode = tiny_skia::BlendMode::Source;
 
-        self.pixmap.draw_pixmap(destination.x, destination.y, pixmap, paint, self.transform, self.mask.as_ref());
+        self.pixmap.draw_pixmap(destination.x, destination.y, pixmap, paint, tiny_skia::Transform::default(), None);
     }
 
     fn create_gradient_stops(
@@ -530,6 +537,8 @@ impl GenericDrawTarget for PixmapTarget {
         let mut draw_options = draw_options.clone();
         let mut draw_options2 = draw_options.as_tiny_skia_mut();
         draw_options2.shader = pattern.as_tiny_skia().to_owned();
+        draw_options2.shader.apply_opacity(self.opacity);
+
         self.pixmap.fill_path(path.as_tiny_skia(), &draw_options2, tiny_skia::FillRule::default(), self.transform, self.mask.as_ref())
     }
 
@@ -549,6 +558,8 @@ impl GenericDrawTarget for PixmapTarget {
         let mut draw_options = draw_options.clone();
         let mut draw_options2 = draw_options.as_tiny_skia_mut();
         draw_options2.shader = pattern.as_tiny_skia().to_owned();
+        draw_options2.shader.apply_opacity(self.opacity);
+
         self.pixmap.fill_rect(
             tiny_skia::Rect::from_xywh(
                 rect.origin.x,
@@ -632,6 +643,8 @@ impl GenericDrawTarget for PixmapTarget {
         let mut draw_options = draw_options.clone();
         let mut draw_options2 = draw_options.as_tiny_skia_mut();
         draw_options2.shader = pattern.as_tiny_skia().to_owned();
+        draw_options2.shader.apply_opacity(self.opacity);
+
         self.pixmap.stroke_path(path.as_tiny_skia(), &draw_options2, stroke_options.as_tiny_skia(), self.transform, self.mask.as_ref())
     }
 
@@ -656,6 +669,7 @@ impl GenericDrawTarget for PixmapTarget {
         let mut draw_options = draw_options.clone();
         let mut draw_options2 = draw_options.as_tiny_skia_mut();
         draw_options2.shader = pattern.as_tiny_skia().to_owned();
+        draw_options2.shader.apply_opacity(self.opacity);
 
         self.pixmap.stroke_path(
             &pb.finish().unwrap(),
@@ -684,6 +698,7 @@ impl GenericDrawTarget for PixmapTarget {
         let mut draw_options = draw_options.clone();
         let mut draw_options2 = draw_options.as_tiny_skia_mut();
         draw_options2.shader = pattern.as_tiny_skia().to_owned();
+        draw_options2.shader.apply_opacity(self.opacity);
 
         self.pixmap.stroke_path(
             &pb.finish().unwrap(),
@@ -701,7 +716,7 @@ impl GenericDrawTarget for PixmapTarget {
 
     fn snapshot_data_owned(&self) -> Vec<u8> {
         let v = self.pixmap.data();
-        v.into()
+        v.to_vec()
     }
 }
 
@@ -840,8 +855,8 @@ impl GenericPathBuilder for PathBuilder {
 impl Filter {
     fn as_tiny_skia(&self) -> tiny_skia::FilterQuality {
         match self {
-            Filter::Linear => tiny_skia::FilterQuality::Bilinear,
-            Filter::Point => tiny_skia::FilterQuality::Nearest,
+            Filter::Bilinear => tiny_skia::FilterQuality::Bilinear,
+            Filter::Nearest => tiny_skia::FilterQuality::Nearest,
         }
     }
 }

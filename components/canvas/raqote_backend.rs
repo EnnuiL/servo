@@ -704,8 +704,8 @@ impl GenericDrawTarget for raqote::DrawTarget {
 impl Filter {
     fn to_raqote(&self) -> raqote::FilterMode {
         match self {
-            Filter::Linear => raqote::FilterMode::Bilinear,
-            Filter::Point => raqote::FilterMode::Nearest,
+            Filter::Bilinear => raqote::FilterMode::Bilinear,
+            Filter::Nearest => raqote::FilterMode::Nearest,
         }
     }
 }

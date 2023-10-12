@@ -343,10 +343,9 @@ impl CanvasState {
         let mut pixels = receiver.recv().unwrap().to_vec();
 
         for chunk in pixels.chunks_mut(4) {
-            let b = chunk[0];
-            chunk[0] = UNPREMULTIPLY_TABLE[256 * (chunk[3] as usize) + chunk[2] as usize];
+            chunk[0] = UNPREMULTIPLY_TABLE[256 * (chunk[3] as usize) + chunk[0] as usize];
             chunk[1] = UNPREMULTIPLY_TABLE[256 * (chunk[3] as usize) + chunk[1] as usize];
-            chunk[2] = UNPREMULTIPLY_TABLE[256 * (chunk[3] as usize) + b as usize];
+            chunk[2] = UNPREMULTIPLY_TABLE[256 * (chunk[3] as usize) + chunk[2] as usize];
         }
 
         pixels
