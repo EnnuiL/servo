@@ -1337,7 +1337,6 @@ fn write_image(
     } else {
         Filter::Nearest
     };
-    let image_size = image_size.to_i32();
 
     draw_target.draw_surface(&image_data, dest_rect, image_rect, filter, draw_options);
 }

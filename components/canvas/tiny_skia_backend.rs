@@ -396,7 +396,7 @@ impl GenericDrawTarget for PixmapTarget {
     fn clear_rect(&mut self, rect: &Rect<f32>) {
         let mut paint = tiny_skia::Paint::default();
         paint.blend_mode = tiny_skia::BlendMode::Clear;
-        //paint.shader = tiny_skia::Shader::SolidColor(tiny_skia::Color::TRANSPARENT);
+
         self.pixmap.fill_rect(
             tiny_skia::Rect::from_xywh(
                 rect.origin.x,
@@ -417,10 +417,10 @@ impl GenericDrawTarget for PixmapTarget {
         destination: lyon_geom::Point<i32>,
     ) {
         let pixmap = PixmapRef::from_bytes(surface, source.width() as u32, source.height() as u32).unwrap();
-        let paint = &mut PixmapPaint::default();
+        let mut paint = PixmapPaint::default();
         paint.blend_mode = tiny_skia::BlendMode::Source;
 
-        self.pixmap.draw_pixmap(destination.x, destination.y, pixmap, paint, tiny_skia::Transform::default(), None);
+        self.pixmap.draw_pixmap(destination.x, destination.y, pixmap, &paint, tiny_skia::Transform::default(), None);
     }
 
     fn create_gradient_stops(
