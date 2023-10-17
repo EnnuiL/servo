@@ -6,7 +6,7 @@ use std::cell::RefCell;
 #[allow(unused_imports)]
 use std::marker::PhantomData;
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use canvas_traits::canvas::*;
 use cssparser::RGBA;
