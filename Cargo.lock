@@ -1760,6 +1760,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "font-types"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02186306cae98ae594620ea5fb50db3706f54525a35ee9acf61dcac2978b3cba"
+
+[[package]]
 name = "fontsan"
 version = "0.4.0"
 source = "git+https://github.com/servo/fontsan#29e879c870348c4b3fd51086e42dbb6365171479"
@@ -2054,6 +2060,7 @@ dependencies = [
  "servo_arc",
  "servo_atoms",
  "servo_url",
+ "skrifa",
  "smallvec",
  "style",
  "time 0.1.45",
@@ -4590,6 +4597,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "read-fonts"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1281bfb309996f8057f0b008d313e7330ae14c038c0410ae0cc299a3a5e0e985"
+dependencies = [
+ "font-types",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5554,6 +5570,15 @@ name = "size_of_test"
 version = "0.0.1"
 dependencies = [
  "static_assertions",
+]
+
+[[package]]
+name = "skrifa"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc3378514db0b5044d163f8920059e55553e881529d545a2d0fc4eacf153bafa"
+dependencies = [
+ "read-fonts",
 ]
 
 [[package]]
