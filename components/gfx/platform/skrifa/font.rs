@@ -30,17 +30,12 @@ impl FontTableMethods for FontTable {
 }
 
 // I hate lifetimes
-pub struct Test {
-    bytes: Vec<u8>,
-}
+#[derive(Debug)]
+pub struct Test(Vec<u8>);
 
 impl Test {
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Self { bytes }
-    }
-
     pub fn get_font_ref(&self) -> FontRef {
-        FontRef::new(&self.bytes).unwrap()
+        FontRef::new(&self.0).unwrap()
     }
 }
 
@@ -51,22 +46,12 @@ pub struct FontInfo {
     attributes: Attributes,
 }
 
+#[derive(Debug)]
 pub struct FontHandle {
     font_data: Arc<FontTemplateData>,
     test: Test,
     info: FontInfo,
     em_size: Size,
-}
-
-impl std::fmt::Debug for FontHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.debug_struct("FontHandle")
-            .field("font_data", &self.font_data)
-            //.field("font_ref", "how")
-            .field("info", &self.info)
-            .field("em_size", &self.em_size)
-            .finish()
-    }
 }
 
 impl FontHandleMethods for FontHandle {
@@ -76,10 +61,10 @@ impl FontHandleMethods for FontHandle {
         pt_size: Option<app_units::Au>,
     ) -> Result<Self, ()> {
         let test = if let Some(ref bytes) = template.bytes {
-            Test::new(bytes.to_owned())
+            Test(bytes.to_owned())
         } else {
             let bytes = std::fs::read(Path::new(template.identifier.as_ref())).unwrap();
-            Test::new(bytes)
+            Test(bytes)
         };
         let font = test.get_font_ref();
 
